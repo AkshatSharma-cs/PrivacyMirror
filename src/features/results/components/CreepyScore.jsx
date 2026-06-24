@@ -19,8 +19,6 @@ export default function CreepyScore({ score, label, color, headline }) {
     return () => clearInterval(iv)
   }, [score])
 
-  const colorVar = color.startsWith('var(') ? getComputedStyle(document.documentElement).getPropertyValue(color.slice(4, -1)).trim() : color
-
   return (
     <div className={styles.wrap}>
       <div className={styles.ring}>

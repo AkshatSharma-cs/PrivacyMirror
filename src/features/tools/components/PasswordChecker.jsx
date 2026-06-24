@@ -1,48 +1,18 @@
 import { useState } from 'react'
-import { analysePassword } from '../services/claude'
+import { analysePassword } from '../../../services/apiClient'
+import { useAsyncData } from '../../../hooks/useAsyncData'
 import styles from './PasswordChecker.module.css'
-
-const SCAN_STEPS = [
-  'Initialising entropy analysis...',
-  'Checking against known breach patterns...',
-  'Running dictionary attack simulation...',
-  'Calculating crack time estimate...',
-  'Generating security report...',
-]
 
 export default function PasswordChecker() {
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [scanStep, setScanStep] = useState(0)
-  const [result, setResult] = useState(null)
-  const [error, setError] = useState('')
+  const { data: result, error, loading, execute, reset } = useAsyncData(
+    ({ signal }, value) => analysePassword(value, signal),
+    { retries: 2, baseDelay: 250 }
+  )
 
-  async function handleCheck() {
-    if (!password.trim()) return
-    setLoading(true)
-    setResult(null)
-    setError('')
-    setScanStep(0)
-
-    // Animate through steps
-    SCAN_STEPS.forEach((_, i) => {
-      setTimeout(() => setScanStep(i), i * 400)
-    })
-
-    try {
-      const data = await analysePassword(password)
-      setTimeout(() => {
-        if (data) setResult(data)
-        else setError('Analysis failed. Try again.')
-        setLoading(false)
-      }, SCAN_STEPS.length * 400)
-    } catch {
-      setTimeout(() => {
-        setError('Could not reach AI service.')
-        setLoading(false)
-      }, SCAN_STEPS.length * 400)
-    }
+  function handleCheck() {
+    if (password.trim()) execute(password)
   }
 
   const scoreColor = result
@@ -61,51 +31,39 @@ export default function PasswordChecker() {
             type={show ? 'text' : 'password'}
             placeholder="Enter a password to analyse..."
             value={password}
-            onChange={e => { setPassword(e.target.value); setResult(null) }}
-            onKeyDown={e => e.key === 'Enter' && handleCheck()}
+            onChange={event => { setPassword(event.target.value); reset() }}
+            onKeyDown={event => event.key === 'Enter' && handleCheck()}
+            aria-label="Password to analyse"
             spellCheck={false}
           />
-          <button className={styles.showBtn} onClick={() => setShow(s => !s)}>
+          <button className={styles.showBtn} onClick={() => setShow(current => !current)} aria-label={show ? 'Hide password' : 'Show password'}>
             {show ? 'HIDE' : 'SHOW'}
           </button>
         </div>
         <button className={styles.analyseBtn} onClick={handleCheck} disabled={loading || !password.trim()}>
-          {loading ? 'Scanning...' : 'Analyse →'}
+          {loading ? 'Scanning...' : 'Analyse'}
         </button>
       </div>
 
       {loading && (
-        <div className={styles.scanBox}>
+        <div className={styles.scanBox} aria-live="polite">
           <div className={styles.scanHeader}>
             <span className={styles.scanPulse} />
             Analysing password...
           </div>
-          {SCAN_STEPS.map((step, i) => (
-            <div
-              key={i}
-              className={`${styles.scanLine} ${i <= scanStep ? styles.scanLineVisible : ''} ${i === scanStep ? styles.scanLineActive : ''}`}
-            >
-              <span className={styles.scanPrompt}>{'>'}</span>
-              <span>{step}</span>
-              {i < scanStep && <span className={styles.scanOk}>✓</span>}
-              {i === scanStep && <span className={styles.scanCursor} />}
-            </div>
-          ))}
+          <div className={styles.scanLineVisible}>Checking entropy, patterns, and crack-time estimate.</div>
           <div className={styles.scanProgress}>
-            <div
-              className={styles.scanProgressFill}
-              style={{ width: `${((scanStep + 1) / SCAN_STEPS.length) * 100}%` }}
-            />
+            <div className={styles.scanProgressFill} style={{ width: '72%' }} />
           </div>
         </div>
       )}
 
-      {error && <div className={styles.error}>{error}</div>}
+      {error && <div className={styles.error} role="alert">{error.message}</div>}
 
       {result && (
         <div className={styles.result}>
           <div className={styles.scoreRow}>
-            <div className={styles.scoreBar}>
+            <div className={styles.scoreBar} aria-label={`Password score ${result.score} out of 100`}>
               <div className={styles.scoreBarFill} style={{ width: `${result.score}%`, background: scoreColor }} />
             </div>
             <span className={styles.scoreStrength} style={{ color: scoreColor }}>{result.strength}</span>
@@ -131,9 +89,9 @@ export default function PasswordChecker() {
           {result.issues?.length > 0 && (
             <div className={styles.section}>
               <div className={styles.sectionLabel}>Issues found</div>
-              {result.issues.map((iss, i) => (
-                <div key={i} className={styles.issue}>
-                  <span className={styles.issueIcon}>✗</span> {iss}
+              {result.issues.map(issue => (
+                <div key={issue} className={styles.issue}>
+                  <span className={styles.issueIcon} aria-hidden="true">x</span> {issue}
                 </div>
               ))}
             </div>
@@ -142,9 +100,9 @@ export default function PasswordChecker() {
           {result.suggestions?.length > 0 && (
             <div className={styles.section}>
               <div className={styles.sectionLabel}>Suggestions</div>
-              {result.suggestions.map((s, i) => (
-                <div key={i} className={styles.suggestion}>
-                  <span className={styles.suggIcon}>→</span> {s}
+              {result.suggestions.map(suggestion => (
+                <div key={suggestion} className={styles.suggestion}>
+                  <span className={styles.suggIcon} aria-hidden="true">-</span> {suggestion}
                 </div>
               ))}
             </div>

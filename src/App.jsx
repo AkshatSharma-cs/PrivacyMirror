@@ -1,36 +1,51 @@
 import { useState } from 'react'
-import LandingScreen from './components/LandingScreen'
-import ScanScreen from './components/ScanScreen'
-import ResultsScreen from './components/ResultsScreen'
-import { PROFILES, generateFallback } from './data/profiles'
-
-// Scan animation runs for ~5s — AI calls happen in parallel in ResultsScreen tabs
-const SCAN_DURATION = 5200
+import LandingScreen from './features/scan/components/LandingScreen'
+import ScanScreen from './features/scan/components/ScanScreen'
+import ResultsScreen from './features/results/components/ResultsScreen'
+import { scanEmail } from './services/apiClient'
+import { useAsyncData } from './hooks/useAsyncData'
 
 export default function App() {
   const [phase, setPhase] = useState('landing')
   const [email, setEmail] = useState('')
   const [data, setData] = useState(null)
+  const [scanError, setScanError] = useState('')
+  const scanRequest = useAsyncData(
+    ({ signal }, value) => scanEmail(value, signal),
+    { retries: 3, baseDelay: 500 }
+  )
 
-  function handleScan(inputEmail) {
+  async function handleScan(inputEmail) {
     setEmail(inputEmail)
+    setData(null)
+    setScanError('')
     setPhase('scanning')
-    const result = PROFILES[inputEmail] || generateFallback(inputEmail)
-    setData(result)
-    setTimeout(() => setPhase('results'), SCAN_DURATION)
+
+    try {
+      const result = await scanRequest.execute(inputEmail)
+      if (result?.data) {
+        setData(result.data)
+        setPhase('results')
+      }
+    } catch (error) {
+      setScanError(error.message || 'Scan failed. Please retry.')
+      setPhase('landing')
+    }
   }
 
   function handleReset() {
     setPhase('landing')
     setEmail('')
     setData(null)
+    setScanError('')
+    scanRequest.reset()
   }
 
   return (
     <>
-      {phase === 'landing'  && <LandingScreen onScan={handleScan} />}
+      {phase === 'landing' && <LandingScreen onScan={handleScan} serverError={scanError} />}
       {phase === 'scanning' && <ScanScreen email={email} />}
-      {phase === 'results'  && data && (
+      {phase === 'results' && data && (
         <ResultsScreen email={email} data={data} onReset={handleReset} />
       )}
     </>
