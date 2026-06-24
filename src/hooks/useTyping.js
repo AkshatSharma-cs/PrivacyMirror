@@ -9,20 +9,23 @@ export function useTyping(text, speed = 14, delay = 0) {
     setDone(false)
     if (!text) return
 
+    let interval = null
     const timeout = setTimeout(() => {
       let i = 0
-      const iv = setInterval(() => {
+      interval = setInterval(() => {
         i++
         setDisplayed(text.slice(0, i))
         if (i >= text.length) {
-          clearInterval(iv)
+          clearInterval(interval)
           setDone(true)
         }
       }, speed)
-      return () => clearInterval(iv)
     }, delay)
 
-    return () => clearTimeout(timeout)
+    return () => {
+      clearTimeout(timeout)
+      if (interval) clearInterval(interval)
+    }
   }, [text, speed, delay])
 
   return { displayed, done }

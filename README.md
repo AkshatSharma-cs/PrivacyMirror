@@ -2,96 +2,91 @@
 
 **AMD Slingshot Hackathon — AI + Cybersecurity Track**
 
-Privacy Mirror is an AI-powered digital footprint reconstruction tool. Enter an email address and watch AI rebuild your digital identity in real time — exposing breach history, dark web presence, threat vectors, and a personality profile inferred from your leaked data.
-
-🔗 **Live Demo:** [privacy-mirror.vercel.app](https://privacy-mirror.vercel.app)
+Privacy Mirror is an AI-powered digital footprint reconstruction tool. Enter an email address and the app combines local demo profiles, live breach lookup data, and Gemini-generated analysis to surface breach history, dark-web-style threat intel, and an inferred personality profile.
 
 ---
 
 ## What It Does
 
-Most people have no idea how much of their personal data is publicly available, actively traded, and cross-referenced across hundreds of databases. Privacy Mirror makes that invisible threat visible — and actionable.
+Privacy Mirror makes invisible digital exposure visible and actionable. The app shows:
 
-### Features
-
-- **Creepy Score** — A 0–100 exposure rating calculated from breach count, data types leaked, and severity
-- **Breach Detection** — Identifies exposure across 160+ real services including LinkedIn, Facebook, Zomato, Domino's India, JusPay, AT&T, 23andMe, Ashley Madison, and more
-- **Breach Timeline** — Interactive visual history of when your data was exposed over the years
-- **AI Personality Profiler** — AI infers your age range, profession, interests, and lifestyle from your breach metadata in real time
-- **Dark Web Threat Intelligence** — AI estimates dark web mention count, whether your data is actively for sale, its market price, and active threat vectors targeting your profile
-- **AI Password Analyser** — Real-time AI analysis of password strength, entropy, crack time, and specific improvement suggestions
-- **AI Phishing URL Detector** — Paste any suspicious link and AI checks for typosquatting, homograph attacks, deceptive subdomains, and social engineering techniques
-- **Remediation Plan** — Personalised action steps tailored to the specific breaches found
-- **Email Validation** — Rejects invalid input before scanning
+- a creepy exposure score
+- a breach timeline and breach list
+- an AI-generated profile inference
+- threat intelligence for the exposed data
+- password-strength analysis
+- phishing URL analysis
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | React 18 + Vite |
-| Styling | CSS Modules |
-| Backend Proxy | Node.js + Express |
-| AI Model | Llama 3.3 70B via Groq API (see note below) |
-| Frontend Hosting | Vercel |
-| Backend Hosting | Render |
-| Breach Data | Curated dataset of 160+ real-world breaches |
-
-### A Note on the AI Model
-
-This project was built for the AMD Slingshot Hackathon where compute resources are limited during development. We are using **Llama 3.3 70B via Groq** as it offers a free tier suitable for hackathon prototyping.
-
-**In production, this would run on `claude-sonnet-4-6` (Anthropic).** Claude Sonnet produces significantly more nuanced personality profiles, more accurate threat intelligence, and better-calibrated password analysis. The architecture is designed for a one-line swap — just change the API endpoint and model name in `src/services/claude.js`. The AMD Instinct MI300X would handle self-hosted LLM inference at scale, delivering the sub-2 second response times the product requires.
+- Frontend: React 18 + Vite
+- Styling: CSS Modules
+- Backend: Node.js + Express
+- AI: Google Gemini 2.0 Flash via the Gemini-compatible OpenAI-style endpoint
+- Real breach source: BreachDirectory via RapidAPI
+- Environment config: dotenv-based local configuration
 
 ---
 
-## What We Tried
+## How Gemini Is Used
 
-### HaveIBeenPwned API Integration
-We attempted to integrate the [HaveIBeenPwned](https://haveibeenpwned.com/API/v3) API for real-time breach lookups. The backend proxy route was built and tested successfully:
+Gemini is used as a prompt-driven reasoning layer for the app’s analysis features.
 
-```
-GET /api/breach/:email
-→ https://haveibeenpwned.com/api/v3/breachedaccount/{email}
-```
+### Prompting techniques used
 
-However we ran into two blockers for the hackathon:
+The project uses several prompt-engineering techniques directly in the backend:
 
-1. **Paid API key required** — HaveIBeenPwned charges $3.50/month with no free tier
-2. **Rate limiting** — The API enforces a 1 request per 1500ms limit which would cause failures during a live demo with multiple emails
+- Role prompting: the model is told to act as a privacy-inference writer, threat-intelligence analyst, or phishing analyst.
+- Context injection: the prompt includes the email, breach metadata, exposure score, and URL details.
+- Output-format conditioning: the model is instructed to return plain text for profile generation and strict JSON for threat and phishing analysis.
+- Constraint prompting: the prompts explicitly tell the model to avoid inventing private facts and to be conservative when the evidence is weak.
 
-We made the decision to use a curated hardcoded breach dataset of 160+ real services instead, which guarantees reliable and dramatic results on stage. In production, the HIBP integration is ready to enable with just an API key.
+These prompts are defined in the backend prompt configuration and passed to Gemini from the AI service layer.
+
+### Did we use function calling or RAG?
+
+- Function calling: not currently used.
+- RAG: not currently used.
+
+The current integration is a prompt-and-response pattern with structured output, plus fallback logic when the API is unavailable or returns invalid content.
+
+---
+
+## Real Breach Source
+
+The app now supports a live breach lookup using BreachDirectory on RapidAPI.
+
+- If a valid API key is present, the scan uses live breach matches from the external source.
+- If the lookup fails or the key is missing, the app falls back to the existing local profile and breach pool.
+
+This gives the app a more grounded source for breach data while still keeping the experience reliable for demos.
 
 ---
 
 ## Project Structure
 
-```
+```text
 privacy-mirror/
-├── server.js                  # Express proxy server for AI API calls
-├── .env                       # API keys (not committed)
-├── src/
-│   ├── App.jsx                # Main app — phase orchestration
-│   ├── index.css              # Global styles, CSS variables, animations
-│   ├── data/
-│   │   └── profiles.js        # 160+ breach pool + hardcoded demo profiles
+├── server/
+│   ├── app.js
+│   ├── config/env.js
+│   ├── routes/api.js
 │   ├── services/
-│   │   └── claude.js          # All AI API calls (profile, threats, password, phishing)
-│   ├── hooks/
-│   │   └── useTyping.js       # Reusable typewriter animation hook
-│   └── components/
-│       ├── LandingScreen      # Email input with validation
-│       ├── ScanScreen         # Animated terminal scan sequence
-│       ├── ResultsScreen      # Tabbed results layout
-│       ├── CreepyScore        # Animated SVG ring gauge
-│       ├── BreachGrid         # Breach cards with severity colours
-│       ├── Timeline           # Interactive breach history timeline
-│       ├── ProfileBox         # AI-generated personality profile
-│       ├── ThreatIntel        # Dark web intelligence panel
-│       ├── PasswordChecker    # AI password strength analyser
-│       ├── PhishingDetector   # AI phishing URL detector
-│       └── ActionPlan         # Remediation steps
+│   │   ├── aiService.js
+│   │   ├── breachService.js
+│   │   └── passwordService.js
+│   └── data/profiles.js
+├── src/
+│   ├── App.jsx
+│   ├── services/
+│   │   └── apiClient.js
+│   │   └── claude.js
+│   └── features/...
+├── server.js
+├── package.json
+└── .env
 ```
 
 ---
@@ -100,102 +95,59 @@ privacy-mirror/
 
 ### Prerequisites
 
-- Node.js v18+
-- A Groq API key — free at [console.groq.com](https://console.groq.com)
+- Node.js 18+
+- A Gemini API key from Google AI Studio
+- A BreachDirectory API key from RapidAPI (optional but recommended for live breach lookups)
 
 ### Installation
 
 ```bash
-# Clone the repo
-git clone https://github.com/AkshatSharma-cs/Privacy-Mirror.git
-cd Privacy-Mirror/privacy-mirror
-
-# Install dependencies
 npm install
+```
 
-# Create environment file
-echo "GROQ_API_KEY=your-key-here" > .env
+### Environment Variables
+
+Create a .env file with:
+
+```env
+GEMINI_API_KEY=your-gemini-key
+GEMINI_MODEL=gemini-2.0-flash
+BREACH_DIRECTORY_API_KEY=your-breach-directory-key
+BREACH_DIRECTORY_ENDPOINT=https://breachdirectory.p.rapidapi.com/
+TRUSTED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
 
 ### Running Locally
 
-You need two terminals running simultaneously:
+Run the backend and frontend in separate terminals:
 
-**Terminal 1 — Backend proxy:**
 ```bash
-node server.js
-# Output: Proxy running on http://localhost:3001
+npm run dev:api
 ```
 
-**Terminal 2 — Frontend:**
 ```bash
 npm run dev
-# Output: Local: http://localhost:5173
 ```
 
-Open `http://localhost:5173` in your browser.
+Open the Vite URL shown in the terminal, typically http://localhost:5173.
 
 ---
 
-## Demo Profiles
+## Notes
 
-These emails are hardcoded with dramatic results for live demos:
-
-| Email | Score | Category |
-|---|---|---|
-| `safe@protonmail.com` | 12 | Low Exposure |
-| `newuser@outlook.com` | 18 | Low Exposure |
-| `privacy@tutanota.com` | 9 | Clean |
-| `john.smith@gmail.com` | 94 | Critical |
-| `sarah.jones@hotmail.com` | 91 | Critical |
-| `mike.wilson@yahoo.com` | 97 | Critical |
-
-Any other valid email generates a randomised result drawn from the 160+ breach pool.
-
----
-
-## How the AI Works
-
-Four separate AI calls power the product:
-
-1. **Profile Generation** — Breach metadata is fed into the LLM which infers demographic and behavioural patterns unique to each scan
-2. **Threat Intelligence** — LLM estimates dark web exposure, market value of the data bundle, and active threat vectors
-3. **Password Analysis** — LLM calculates entropy, crack time, and specific weaknesses for any password entered
-4. **Phishing Detection** — LLM analyses URL structure for typosquatting, homograph attacks, suspicious subdomains, and social engineering patterns
-
-All AI calls are proxied through a backend Express server to keep API keys off the client.
-
----
-
-## Deployment
-
-| Service | Platform | URL |
-|---|---|---|
-| Frontend | Vercel | Auto-deploys on push to main |
-| Backend | Render (free tier) | Auto-deploys on push to main |
-
-Note: Render's free tier spins down after 15 minutes of inactivity. The first request after idle takes ~30 seconds to wake up. Open the app a couple of minutes before any live demo.
-
----
-
-## Roadmap
-
-- [ ] Swap Groq/Llama for Claude Sonnet on AMD MI300X infrastructure
-- [ ] Enable HaveIBeenPwned API with paid key for live breach lookups
-- [ ] Add data broker opt-out automation
-- [ ] Email monitoring with real-time breach alerts
-- [ ] Browser extension for real-time phishing detection
-- [ ] Mobile app
+- The app uses Gemini for profile writing, threat-intel summarization, and phishing analysis.
+- The breach lookup path is now backed by a real source when a valid API key is available.
+- The app still includes deterministic fallbacks so it remains usable even if the external APIs are unavailable.
 
 ---
 
 ## Built With
 
-- [React](https://react.dev)
-- [Vite](https://vitejs.dev)
-- [Express](https://expressjs.com)
-- [Groq](https://groq.com) — Fast LLM inference (hackathon)
-- [Anthropic Claude](https://anthropic.com) — Production AI target
+- React
+- Vite
+- Express
+- Google Gemini
+- RapidAPI / BreachDirectory
 
 ---
 

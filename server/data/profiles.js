@@ -186,7 +186,13 @@ export const BREACH_POOL = [
 export function pickBreaches(email, count) {
   let hash = 0;
   for (let i = 0; i < email.length; i++) hash = (hash * 31 + email.charCodeAt(i)) >>> 0;
-  const pool = [...BREACH_POOL];
+  const seen = new Set();
+  const pool = BREACH_POOL.filter((breach) => {
+    const key = `${breach.name.toLowerCase()}-${breach.year}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   for (let i = pool.length - 1; i > 0; i--) {
     hash = (hash * 1664525 + 1013904223) >>> 0;
     const j = hash % (i + 1);

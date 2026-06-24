@@ -1,27 +1,23 @@
 import 'dotenv/config'
-import express from 'express'
-import cors from 'cors'
+import fs from 'node:fs'
+import { createApp } from './server/app.js'
+import { getEnv } from './server/config/env.js'
 
-const app = express()
-app.use(cors())
-app.use(express.json())
-
-app.post('/api/claude', async (req, res) => {
-  try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
-      },
-      body: JSON.stringify(req.body)
-    })
-    const data = await response.json()
-    res.json(data)
-  } catch (e) {
-    res.status(500).json({ error: e.message })
-  }
+process.stdout.on('error', () => {})
+process.stderr.on('error', () => {})
+process.on('uncaughtException', error => {
+  fs.appendFileSync('server-crash.log', `${new Date().toISOString()} uncaughtException ${error.stack || error.message}\n`)
+})
+process.on('unhandledRejection', error => {
+  fs.appendFileSync('server-crash.log', `${new Date().toISOString()} unhandledRejection ${error?.stack || error}\n`)
+})
+process.on('exit', code => {
+  fs.appendFileSync('server-crash.log', `${new Date().toISOString()} exit ${code}\n`)
 })
 
-app.listen(3001, () => console.log('Proxy running on http://localhost:3001'))
+const env = getEnv()
+const app = createApp(env)
 
+app.listen(env.port, () => {
+  console.log(`Privacy Mirror API listening on http://localhost:${env.port}`)
+})

@@ -29,6 +29,11 @@ export default function Timeline({ events }) {
   const years = [...new Set(sorted.map(e => e.year))].sort()
   const minYear = years[0]
   const maxYear = new Date().getFullYear()
+  const span = Math.max(maxYear - minYear, 1)
+
+  function yearPosition(year) {
+    return Math.min(98, Math.max(2, ((year - minYear) / span) * 100))
+  }
 
   return (
     <div className={styles.wrap}>
@@ -41,7 +46,7 @@ export default function Timeline({ events }) {
       <div className={styles.track}>
         {/* Year markers */}
         {years.map(year => {
-          const pct = ((year - minYear) / Math.max(maxYear - minYear, 1)) * 100
+          const pct = yearPosition(year)
           return (
             <div key={year} className={styles.yearMark} style={{ left: `${pct}%` }}>
               <div className={styles.yearTick} />
@@ -52,21 +57,23 @@ export default function Timeline({ events }) {
 
         {/* Event dots */}
         {sorted.map((evt, i) => {
-          const pct = ((evt.year - minYear) / Math.max(maxYear - minYear, 1)) * 100
+          const pct = yearPosition(evt.year)
           const color = TYPE_COLOR[evt.type] || 'var(--text-dim)'
           const isOpen = expanded === i
+          const laneOffset = (i % 3) * 16
 
           return (
             <div
               key={i}
               className={`${styles.event} ${isOpen ? styles.eventOpen : ''}`}
-              style={{ left: `${pct}%`, animationDelay: `${i * 0.1}s` }}
+              style={{ left: `${pct}%`, top: `${laneOffset}px`, animationDelay: `${i * 0.1}s` }}
             >
               <button
                 className={styles.dot}
                 style={{ borderColor: color, boxShadow: isOpen ? `0 0 12px ${color}` : 'none' }}
                 onClick={() => setExpanded(isOpen ? null : i)}
-                title={evt.event}
+                aria-expanded={isOpen}
+                aria-label={`${evt.year} ${evt.event}`}
               >
                 <span className={styles.dotInner} style={{ background: color }} />
               </button>

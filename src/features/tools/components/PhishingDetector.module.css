@@ -47,13 +47,19 @@
   flex-wrap: wrap;
   align-items: center;
 }
-.examples span {
+.examples button {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  font: inherit;
   color: var(--text);
   cursor: pointer;
   text-decoration: underline;
   text-decoration-color: rgba(209,227,240,0.2);
 }
-.examples span:hover { color: var(--green); text-decoration-color: var(--green); }
+.examples button:hover,
+.examples button:focus-visible { color: var(--green); text-decoration-color: var(--green); }
 
 /* Scan animation */
 .scanBox {
