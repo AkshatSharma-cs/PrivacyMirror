@@ -156,6 +156,37 @@ export function normalizeBreachMatches(matches = []) {
     .slice(0, 6)
 }
 
+function buildNeutralProfile(email) {
+  const currentYear = new Date().getFullYear()
+
+  return {
+    creepyScore: 0,
+    scoreLabel: 'CLEAN',
+    scoreColor: 'var(--green)',
+    headline: 'No live breach matches found.',
+    breaches: [],
+    profile: `No live breach matches were found for ${email}. This result is based on the current external breach source, so there is no evidence here of Telegram, Air India, Deliveroo, or similar exposures unless they appear in a future lookup.`,
+    timeline: [
+      {
+        year: currentYear,
+        event: 'No live breach matches',
+        detail: 'The current breach lookup source returned no matches for this email address.',
+        type: 'clean',
+      },
+    ],
+    actions: [
+      {
+        title: 'Keep the account monitored',
+        detail: 'Even if no matches are found today, reuse of the address on other services can create future exposure.',
+      },
+      {
+        title: 'Use unique passwords',
+        detail: 'A clean result does not replace strong password hygiene and multi-factor authentication.',
+      },
+    ],
+  }
+}
+
 async function lookupBreachMatches(email) {
   const apiKey = process.env.BREACH_DIRECTORY_API_KEY || process.env.RAPIDAPI_KEY || ''
   const endpoint = process.env.BREACH_DIRECTORY_ENDPOINT || 'https://breachdirectory.p.rapidapi.com/'
@@ -190,8 +221,13 @@ async function lookupBreachMatches(email) {
 }
 
 export async function buildScanProfile(email) {
-  const base = PROFILES[email] || generateFallback(email)
   const remoteBreaches = await lookupBreachMatches(email)
+
+  if (!PROFILES[email] && remoteBreaches.length === 0) {
+    return buildNeutralProfile(email)
+  }
+
+  const base = PROFILES[email] || generateFallback(email)
   const breaches = remoteBreaches.length ? remoteBreaches : base.breaches || []
   const creepyScore = calculateExposureScore(breaches)
   const metadata = scoreMetadata(creepyScore)
