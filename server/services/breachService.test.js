@@ -54,7 +54,7 @@ test('returns a neutral clean profile when a fresh email has no live breach matc
   }
 })
 
-test('surfaces BreachDirectory rate limits instead of returning a clean profile', async () => {
+test('falls back to a local profile when BreachDirectory is unavailable', async () => {
   const originalFetch = global.fetch
   const originalApiKey = process.env.BREACH_DIRECTORY_API_KEY
   process.env.BREACH_DIRECTORY_API_KEY = 'test-key'
@@ -65,14 +65,11 @@ test('surfaces BreachDirectory rate limits instead of returning a clean profile'
   })
 
   try {
-    await assert.rejects(
-      () => buildScanProfile('fresh@example.com'),
-      {
-        name: 'BreachLookupError',
-        statusCode: 429,
-        publicMessage: /rate limit reached/,
-      }
-    )
+    const profile = await buildScanProfile('fresh@example.com')
+
+    assert.equal(profile.source, 'local-profile')
+    assert.equal(profile.lookupUnavailable, true)
+    assert.ok(profile.breaches.length > 0)
   } finally {
     global.fetch = originalFetch
     if (originalApiKey === undefined) {

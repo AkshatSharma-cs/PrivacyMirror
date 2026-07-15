@@ -242,10 +242,30 @@ async function lookupBreachMatches(email) {
 }
 
 export async function buildScanProfile(email) {
-  const remoteBreaches = await lookupBreachMatches(email)
+  let remoteBreaches = []
+  let lookupUnavailable = false
+
+  try {
+    remoteBreaches = await lookupBreachMatches(email)
+  } catch (error) {
+    if (!(error instanceof BreachLookupError)) throw error
+    lookupUnavailable = true
+  }
 
   if (!PROFILES[email] && remoteBreaches.length === 0) {
-    return buildNeutralProfile(email)
+    if (!lookupUnavailable) return buildNeutralProfile(email)
+
+    const fallback = generateFallback(email)
+    const fallbackScore = calculateExposureScore(fallback.breaches || [])
+    const metadata = scoreMetadata(fallbackScore)
+
+    return {
+      ...fallback,
+      ...metadata,
+      creepyScore: fallbackScore,
+      source: 'local-profile',
+      lookupUnavailable: true,
+    }
   }
 
   const base = PROFILES[email] || generateFallback(email)
@@ -259,5 +279,6 @@ export async function buildScanProfile(email) {
     creepyScore,
     breaches,
     source: remoteBreaches.length ? 'breach-directory' : 'local-profile',
+    lookupUnavailable,
   }
 }
