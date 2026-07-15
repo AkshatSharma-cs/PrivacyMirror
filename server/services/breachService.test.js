@@ -30,6 +30,8 @@ test('normalizes real breach directory data into internal breach objects', () =>
 
 test('returns a neutral clean profile when a fresh email has no live breach matches', async () => {
   const originalFetch = global.fetch
+  const originalApiKey = process.env.BREACH_DIRECTORY_API_KEY
+  process.env.BREACH_DIRECTORY_API_KEY = 'test-key'
   global.fetch = async () => ({
     ok: true,
     json: async () => ({ success: true, found: 0, result: [] }),
@@ -44,5 +46,39 @@ test('returns a neutral clean profile when a fresh email has no live breach matc
     assert.match(profile.profile, /No live breach matches were found/)
   } finally {
     global.fetch = originalFetch
+    if (originalApiKey === undefined) {
+      delete process.env.BREACH_DIRECTORY_API_KEY
+    } else {
+      process.env.BREACH_DIRECTORY_API_KEY = originalApiKey
+    }
+  }
+})
+
+test('surfaces BreachDirectory rate limits instead of returning a clean profile', async () => {
+  const originalFetch = global.fetch
+  const originalApiKey = process.env.BREACH_DIRECTORY_API_KEY
+  process.env.BREACH_DIRECTORY_API_KEY = 'test-key'
+  global.fetch = async () => ({
+    ok: false,
+    status: 429,
+    json: async () => ({ message: 'rate limited' }),
+  })
+
+  try {
+    await assert.rejects(
+      () => buildScanProfile('fresh@example.com'),
+      {
+        name: 'BreachLookupError',
+        statusCode: 429,
+        publicMessage: /rate limit reached/,
+      }
+    )
+  } finally {
+    global.fetch = originalFetch
+    if (originalApiKey === undefined) {
+      delete process.env.BREACH_DIRECTORY_API_KEY
+    } else {
+      process.env.BREACH_DIRECTORY_API_KEY = originalApiKey
+    }
   }
 })

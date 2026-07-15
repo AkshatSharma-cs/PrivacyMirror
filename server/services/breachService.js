@@ -93,6 +93,15 @@ export function scoreMetadata(score) {
 
 const DEFAULT_BREACH_LOOKUP_TIMEOUT_MS = 6000
 
+class BreachLookupError extends Error {
+  constructor(message, statusCode = 503) {
+    super(message)
+    this.name = 'BreachLookupError'
+    this.statusCode = statusCode
+    this.publicMessage = message
+  }
+}
+
 function toRecordsLabel(count) {
   if (!Number.isFinite(count) || count <= 0) return 'unknown'
   if (count >= 1_000_000_000) return `${(count / 1_000_000_000).toFixed(0)}b`
@@ -192,29 +201,41 @@ async function lookupBreachMatches(email) {
   const endpoint = process.env.BREACH_DIRECTORY_ENDPOINT || 'https://breachdirectory.p.rapidapi.com/'
   const host = process.env.BREACH_DIRECTORY_HOST || 'breachdirectory.p.rapidapi.com'
 
-  if (!apiKey || apiKey.includes('your-')) return []
+  if (!apiKey || apiKey.includes('your-')) {
+    throw new BreachLookupError('BreachDirectory is not configured. Add a valid RapidAPI key to enable live breach scans.')
+  }
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), DEFAULT_BREACH_LOOKUP_TIMEOUT_MS)
 
   try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
+    const url = new URL(endpoint)
+    url.searchParams.set('func', 'auto')
+    url.searchParams.set('term', email)
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'x-rapidapi-key': apiKey,
         'x-rapidapi-host': host,
       },
-      body: JSON.stringify({ email }),
     })
 
-    if (!response.ok) return []
+    if (!response.ok) {
+      const message = response.status === 429
+        ? 'BreachDirectory rate limit reached. Wait for the RapidAPI quota to reset or upgrade the subscription.'
+        : 'BreachDirectory lookup failed. Please retry the scan.'
+      throw new BreachLookupError(message, response.status === 429 ? 429 : 503)
+    }
+
     const payload = await response.json()
     const matches = Array.isArray(payload) ? payload : payload?.result || []
     return normalizeBreachMatches(matches)
-  } catch {
-    return []
+  } catch (error) {
+    if (error instanceof BreachLookupError) throw error
+    throw new BreachLookupError('BreachDirectory lookup timed out or could not be reached. Please retry the scan.')
   } finally {
     clearTimeout(timeout)
   }

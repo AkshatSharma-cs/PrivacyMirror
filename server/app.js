@@ -61,6 +61,9 @@ export function createApp(env) {
     if (error.message.includes('CORS')) {
       return res.status(403).json({ error: 'Origin not allowed.' })
     }
+    if (error.publicMessage && error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.publicMessage })
+    }
     res.status(500).json({ error: 'Service temporarily unavailable. Please retry.' })
   })
 
