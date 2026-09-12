@@ -24,8 +24,8 @@ Privacy Mirror makes invisible digital exposure visible and actionable. The app 
 - Frontend: React 18 + Vite
 - Styling: CSS Modules
 - Backend: Node.js + Express
-- AI: Google Gemini 2.0 Flash via the Gemini-compatible OpenAI-style endpoint
-- Real breach source: BreachDirectory via RapidAPI
+- AI: Google Gemini 3.6 Flash via the OpenAI-compatible endpoint with structured JSON mode
+- Real breach source: BreachDirectory via RapidAPI (with dual HIBP & RapidAPI schema normalization)
 - Environment config: dotenv-based local configuration
 
 ---
@@ -40,10 +40,9 @@ The project uses several prompt-engineering techniques directly in the backend:
 
 - Role prompting: the model is told to act as a privacy-inference writer, threat-intelligence analyst, or phishing analyst.
 - Context injection: the prompt includes the email, breach metadata, exposure score, and URL details.
-- Output-format conditioning: the model is instructed to return plain text for profile generation and strict JSON for threat and phishing analysis.
+- Output-format conditioning: the model is instructed to return plain text for profile generation and strict JSON (`response_format: { type: 'json_object' }`) for threat and phishing analysis.
 - Constraint prompting: the prompts explicitly tell the model to avoid inventing private facts and to be conservative when the evidence is weak.
-
-These prompts are defined in the backend prompt configuration and passed to Gemini from the AI service layer.
+- Reasoning token budgeting: increased `max_tokens` (1200) to account for Gemini 3.6 Flash reasoning tokens without truncating structured JSON outputs.
 
 ### Did we use function calling or RAG?
 
@@ -56,12 +55,13 @@ The current integration is a prompt-and-response pattern with structured output,
 
 ## Real Breach Source
 
-The app now supports a live breach lookup using BreachDirectory on RapidAPI.
+The app supports live breach lookups using BreachDirectory on RapidAPI with a robust normalizer:
 
-- If a valid API key is present, the scan uses live breach matches from the external source.
-- If the lookup fails or the key is missing, the app falls back to the existing local profile and breach pool.
-
-This gives the app a more grounded source for breach data while still keeping the experience reliable for demos.
+- **Dual-Schema Parsing**: Seamlessly processes both RapidAPI BreachDirectory payload structures (`sources`, `hash_password`, `password`, `sha1`, `md5`) and HaveIBeenPwned (HIBP) formats.
+- **Defensive Source Extraction**: Defensively handles domain lists formatted as arrays or comma-separated strings.
+- **Data Integrity**: Preserves undated leaks as `year: null` rather than fabricating fictitious dates, ensuring the Timeline chart displays clean historical data.
+- **Dynamic Severity**: Computes exposure severity dynamically based on sensitive data classes (e.g. plaintext passwords, hashes, cards, SSNs).
+- **Fallback**: If the API lookup fails or the key is missing, the app falls back to local profiles and breach pools so demos stay reliable.
 
 ---
 
@@ -76,13 +76,13 @@ privacy-mirror/
 │   ├── services/
 │   │   ├── aiService.js
 │   │   ├── breachService.js
+│   │   ├── breachService.test.js
 │   │   └── passwordService.js
 │   └── data/profiles.js
 ├── src/
 │   ├── App.jsx
 │   ├── services/
 │   │   └── apiClient.js
-│   │   └── claude.js
 │   └── features/...
 ├── server.js
 ├── package.json
@@ -107,11 +107,11 @@ npm install
 
 ### Environment Variables
 
-Create a .env file with:
+Create a `.env` file with:
 
 ```env
 GEMINI_API_KEY=your-gemini-key
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-3.6-flash
 BREACH_DIRECTORY_API_KEY=your-breach-directory-key
 BREACH_DIRECTORY_ENDPOINT=https://breachdirectory.p.rapidapi.com/
 TRUSTED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
@@ -129,15 +129,23 @@ npm run dev:api
 npm run dev
 ```
 
-Open the Vite URL shown in the terminal, typically http://localhost:5173.
+Open the Vite URL shown in the terminal, typically `http://localhost:5173`.
+
+### Running Tests
+
+Execute the Node test runner to verify breach directory parsing and profile fallback logic:
+
+```bash
+npm test
+```
 
 ---
 
 ## Notes
 
-- The app uses Gemini for profile writing, threat-intel summarization, and phishing analysis.
-- The breach lookup path is now backed by a real source when a valid API key is available.
-- The app still includes deterministic fallbacks so it remains usable even if the external APIs are unavailable.
+- The app uses Gemini 3.6 Flash for profile writing, threat-intel summarization, and phishing analysis.
+- The breach lookup path is backed by BreachDirectory with multi-schema normalizer fallback.
+- The app includes deterministic fallbacks so it remains usable even if external APIs are unreachable.
 
 ---
 
@@ -146,7 +154,7 @@ Open the Vite URL shown in the terminal, typically http://localhost:5173.
 - React
 - Vite
 - Express
-- Google Gemini
+- Google Gemini 3.6 Flash
 - RapidAPI / BreachDirectory
 
 ---

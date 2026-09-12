@@ -9,6 +9,7 @@
     "dev:api": "node server.js",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "node --test server/services/breachService.test.js",
     "start": "node server.js"
   },
   "dependencies": {
