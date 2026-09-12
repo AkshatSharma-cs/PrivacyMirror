@@ -12,7 +12,7 @@ function cacheKey(kind, payload) {
     .digest('hex')
 }
 
-async function chatCompletion({ env, kind, userPrompt, maxTokens = 500 }) {
+async function chatCompletion({ env, kind, userPrompt, maxTokens = 1200 }) {
   if (!env.geminiApiKey) return null
 
   const key = cacheKey(kind, { model: env.aiModel, userPrompt })
@@ -20,7 +20,9 @@ async function chatCompletion({ env, kind, userPrompt, maxTokens = 500 }) {
   if (cached) return { ...cached, cached: true }
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 6000)
+  const timeout = setTimeout(() => controller.abort(), 10000)
+
+  const isJsonMode = kind === 'threatIntel' || kind === 'phishing'
 
   const response = await fetch('https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', {
     method: 'POST',
@@ -37,6 +39,7 @@ async function chatCompletion({ env, kind, userPrompt, maxTokens = 500 }) {
         { role: 'system', content: SYSTEM_PROMPTS[kind] },
         { role: 'user', content: userPrompt },
       ],
+      ...(isJsonMode ? { response_format: { type: 'json_object' } } : {}),
     }),
   }).finally(() => clearTimeout(timeout))
 
@@ -58,7 +61,7 @@ async function chatCompletion({ env, kind, userPrompt, maxTokens = 500 }) {
 function summarizeBreaches(breaches) {
   return breaches.length === 0
     ? 'No breaches found.'
-    : breaches.map(b => `${b.name} (${b.year}, ${b.severity}): ${b.types.join(', ')}`).join('\n')
+    : breaches.map(b => `${b.name} (${b.year ? b.year : 'Date unknown'}, ${b.severity}): ${b.types.join(', ')}`).join('\n')
 }
 
 export async function generateProfileInference(env, { email, breaches, creepyScore, fallbackProfile }) {
@@ -67,7 +70,7 @@ export async function generateProfileInference(env, { email, breaches, creepySco
     result = await chatCompletion({
       env,
       kind: 'profile',
-      maxTokens: 300,
+      maxTokens: 600,
       userPrompt: `Email scanned: ${email}
 Exposure score: ${creepyScore}/100
 Breach metadata:
@@ -93,7 +96,7 @@ export async function generateThreatIntel(env, { email, breaches }) {
     result = await chatCompletion({
       env,
       kind: 'threatIntel',
-      maxTokens: 500,
+      maxTokens: 1200,
       userPrompt: `Email: ${email}
 Known breach metadata:
 ${summarizeBreaches(breaches)}
@@ -128,7 +131,7 @@ export async function analysePhishingUrl(env, input) {
     result = await chatCompletion({
       env,
       kind: 'phishing',
-      maxTokens: 500,
+      maxTokens: 1200,
       userPrompt: `URL: ${input.normalizedUrl}
 Hostname: ${input.hostname}
 

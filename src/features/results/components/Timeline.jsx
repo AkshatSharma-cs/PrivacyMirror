@@ -22,11 +22,13 @@ const TYPE_LABEL = {
 export default function Timeline({ events }) {
   const [expanded, setExpanded] = useState(null)
 
-  if (!events || events.length === 0) return null
+  // Filter out events without numeric years
+  const validEvents = (events || []).filter(e => e && typeof e.year === 'number' && !Number.isNaN(e.year))
+  if (validEvents.length === 0) return null
 
   // Sort chronologically
-  const sorted = [...events].sort((a, b) => a.year - b.year)
-  const years = [...new Set(sorted.map(e => e.year))].sort()
+  const sorted = [...validEvents].sort((a, b) => a.year - b.year)
+  const years = [...new Set(sorted.map(e => e.year))].sort((a, b) => a - b)
   const minYear = years[0]
   const maxYear = new Date().getFullYear()
   const span = Math.max(maxYear - minYear, 1)

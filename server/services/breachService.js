@@ -33,7 +33,7 @@ const DATA_TYPE_WEIGHT = {
 export function getBreachPool() {
   const seen = new Set()
   return BREACH_POOL.filter(breach => {
-    const key = `${breach.name.toLowerCase()}-${breach.year}`
+    const key = `${breach.name.toLowerCase()}-${breach.year || 'unknown'}`
     if (seen.has(key)) return false
     seen.add(key)
     return true
@@ -144,23 +144,80 @@ function toNormalizedTypes(dataClasses = []) {
   return types
 }
 
+function formatBreachName(rawSources) {
+  if (!rawSources) return 'Unknown breach'
+  const list = Array.isArray(rawSources)
+    ? rawSources
+    : String(rawSources).split(',').map(s => s.trim()).filter(Boolean)
+  const firstSource = list[0] || ''
+  if (!firstSource) return 'Unknown breach'
+  const domainPart = firstSource.split('.')[0]
+  if (domainPart.length >= 2) {
+    return domainPart.charAt(0).toUpperCase() + domainPart.slice(1)
+  }
+  return firstSource
+}
+
 export function normalizeBreachMatches(matches = []) {
+  const seen = new Set()
   return matches
-    .filter(match => !match?.IsFabricated && !match?.IsSensitive)
+    .filter(match => match && !match?.IsFabricated && !match?.IsSensitive)
     .map(match => {
-      const breachDate = match?.BreachDate || match?.BreachDate || ''
-      const year = Number.parseInt(String(breachDate).slice(0, 4), 10) || new Date().getFullYear()
-      const dataClasses = Array.isArray(match?.DataClasses) ? match.DataClasses : []
-      const types = toNormalizedTypes(dataClasses)
-      const severity = match?.IsVerified ? 'high' : 'medium'
+      const rawSources = match?.sources || match?.source || match?.Title || match?.site || match?.name || ''
+      const name = formatBreachName(rawSources)
+
+      const breachDate = match?.BreachDate || match?.date || match?.year || ''
+      const parsedYear = Number.parseInt(String(breachDate).slice(0, 4), 10)
+      const year = Number.isInteger(parsedYear) && parsedYear > 1990 && parsedYear <= new Date().getFullYear()
+        ? parsedYear
+        : null
+
+      const types = []
+      if (Array.isArray(match?.DataClasses) && match.DataClasses.length > 0) {
+        types.push(...toNormalizedTypes(match.DataClasses))
+      }
+      if (match?.email && !types.includes('Email')) {
+        types.push('Email')
+      }
+      if (match?.password && !types.includes('Password plaintext')) {
+        types.push('Password plaintext')
+      }
+      if ((match?.hash_password || match?.hash || match?.sha1 || match?.md5) && !types.includes('Password hash')) {
+        types.push('Password hash')
+      }
+      if (match?.username && !types.includes('Username')) {
+        types.push('Username')
+      }
+      if (match?.phone && !types.includes('Phone')) {
+        types.push('Phone')
+      }
+      if (types.length === 0) {
+        types.push('Email')
+      }
+
+      let severity = 'medium'
+      if (types.includes('Password plaintext') || types.includes('SSN') || types.includes('Card') || types.includes('Passport')) {
+        severity = 'critical'
+      } else if (types.includes('Password hash') || match?.IsVerified) {
+        severity = 'high'
+      }
+
+      const pwnCount = Number(match?.PwnCount || match?.pwn_count || match?.records)
+      const records = Number.isFinite(pwnCount) && pwnCount > 0 ? toRecordsLabel(pwnCount) : '100k+'
 
       return {
-        name: match?.Title || 'Unknown breach',
+        name,
         year,
-        records: toRecordsLabel(Number(match?.PwnCount) || 0),
-        types: types.length ? types : ['Email'],
+        records,
+        types,
         severity,
       }
+    })
+    .filter(breach => {
+      const key = `${breach.name.toLowerCase()}-${breach.year || 'unknown'}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
     })
     .slice(0, 6)
 }

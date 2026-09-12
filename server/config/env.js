@@ -25,6 +25,6 @@ export function getEnv() {
     port,
     geminiApiKey,
     trustedOrigins,
-    aiModel: process.env.GEMINI_MODEL || 'gemini-2.0-flash',
+    aiModel: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
   }
 }

@@ -1,10 +1,17 @@
 const COMMON_PATTERNS = [
   /password/i,
+  /p@ssword/i,
   /qwerty/i,
+  /asdf/i,
+  /zxcv/i,
   /admin/i,
   /letmein/i,
   /welcome/i,
+  /login/i,
+  /iloveyou/i,
   /123456/,
+  /12345678/,
+  /123456789/,
 ]
 
 export function analysePasswordStrength(password) {
